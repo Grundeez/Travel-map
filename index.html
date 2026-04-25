@@ -1024,7 +1024,7 @@ function exportData() {
 let ghUser = localStorage.getItem('wj-gh-user') || '';
 let ghRepo = localStorage.getItem('wj-gh-repo') || '';
 let ghToken = localStorage.getItem('wj-gh-token') || '';
-let ghFileSha = '';   // GitHub needs the current file SHA to update it
+// places.json SHA is fetched inline during each push
 
 function githubConfigured() {
   return ghUser && ghRepo && ghToken;
@@ -1037,59 +1037,43 @@ function setSyncStatus(state, label) {
   lbl.textContent = label || 'GitHub';
 }
 
-// Fetch the current file SHA from GitHub (needed before every update)
-async function fetchFileSha() {
-  const url = 'https://api.github.com/repos/' + ghUser + '/' + ghRepo + '/contents/index.html';
-  const res = await fetch(url, {
-    headers: {
-      'Authorization': 'token ' + ghToken,
-      'Accept': 'application/vnd.github.v3+json'
-    }
-  });
-  if (!res.ok) throw new Error('Could not reach GitHub file (status ' + res.status + ')');
-  const data = await res.json();
-  ghFileSha = data.sha;
-  return data;
-}
+// (SHA fetching now handled inline in pushToGithub)
 
-// Push updated index.html to GitHub with new places data baked in
+// Push places to places.json on GitHub (never touches index.html)
 async function pushToGithub() {
   if (!githubConfigured()) return;
 
   setSyncStatus('syncing', 'Saving…');
 
   try {
-    // Get current file content + SHA
-    const fileData = await fetchFileSha();
-    let content = atob(fileData.content.replace(/\n/g, ''));
+    const apiUrl = 'https://api.github.com/repos/' + ghUser + '/' + ghRepo + '/contents/places.json';
+    const headers = {
+      'Authorization': 'token ' + ghToken,
+      'Accept': 'application/vnd.github.v3+json',
+      'Content-Type': 'application/json'
+    };
 
-    // Replace the seed data block with current places
-    const newSeed = 'places = ' + JSON.stringify(places, null, 4) + ';\n  persist();';
-    content = content.replace(/places = \[[\s\S]*?\];\s*\n\s*persist\(\);/, newSeed);
+    // Check if places.json already exists (need its SHA to update it)
+    let sha = '';
+    const check = await fetch(apiUrl, { headers: headers });
+    if (check.ok) {
+      const existing = await check.json();
+      sha = existing.sha;
+    }
 
-    // Also ensure the if(places.length===0) guard is removed so data always loads
-    content = content.replace(
-      /if \(places\.length === 0\) \{\s*\n/,
-      'if (false) {\n'
-    );
+    // Encode places data as base64
+    const jsonStr = JSON.stringify(places, null, 2);
+    const encoded = btoa(unescape(encodeURIComponent(jsonStr)));
 
-    // Encode back to base64
-    const encoded = btoa(unescape(encodeURIComponent(content)));
+    // Build request body
+    const body = { message: 'Update travel map places', content: encoded };
+    if (sha) body.sha = sha;
 
-    // Push to GitHub
-    const pushUrl = 'https://api.github.com/repos/' + ghUser + '/' + ghRepo + '/contents/index.html';
-    const res = await fetch(pushUrl, {
+    // Push places.json to GitHub
+    const res = await fetch(apiUrl, {
       method: 'PUT',
-      headers: {
-        'Authorization': 'token ' + ghToken,
-        'Accept': 'application/vnd.github.v3+json',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        message: 'Update travel map places',
-        content: encoded,
-        sha: ghFileSha
-      })
+      headers: headers,
+      body: JSON.stringify(body)
     });
 
     if (!res.ok) {
@@ -1176,23 +1160,43 @@ function saveGithubSettings() {
 }
 
 // ════════════════════════════════════════════════
-//  INIT
+//  INIT — fetch places.json fresh every page load
 // ════════════════════════════════════════════════
-if (places.length === 0) {
-  places = [
-    { city: "Paris", country: "France", lat: 48.8566, lng: 2.3522, date: "2023-06", notes: "Golden hour on Montmartre. The covered passages off Boulevard Montmartre were a favourite discovery — arcade after arcade of antique bookshops and old cafés.", photos: [] },
-    { city: "Kyoto", country: "Japan", lat: 35.0116, lng: 135.7681, date: "2024-03", notes: "Cherry blossoms along the Philosopher's Path. Arrived at Fushimi Inari at 6am to have the vermillion gates almost entirely to myself.", photos: [] },
-    { city: "Marrakech", country: "Morocco", lat: 31.6295, lng: -7.9811, date: "2024-01", notes: "Lost for two hours in the souks — the best two hours of the trip. Jemaa el-Fna at dusk, the call to prayer over the rooftops.", photos: [] },
-    { city: "Cape Town", country: "South Africa", lat: -33.9249, lng: 18.4241, date: "2023-12", notes: "Table Mountain at sunset, the Boulders penguin colony, and the best fish tacos at the V&A Waterfront.", photos: [] },
-    { city: "Cartagena", country: "Colombia", lat: 10.3910, lng: -75.4794, date: "2022-11", notes: "Coloured balconies dripping with bougainvillea. Walled city at night is something out of a novel.", photos: [] },
-  ];
-  persist();
+async function loadPlaces() {
+  // Always try to fetch places.json from GitHub Pages first (cache-busted)
+  // This means every visitor always gets the latest data, no cache issues
+  const jsonUrl = window.location.origin + window.location.pathname.replace(/\/[^\/]*$/, '/') + 'places.json?v=' + Date.now();
+
+  try {
+    const res = await fetch(jsonUrl);
+    if (res.ok) {
+      const remote = await res.json();
+      if (Array.isArray(remote) && remote.length > 0) {
+        places = remote;
+        persist(); // sync to localStorage too
+        renderPins();
+        return;
+      }
+    }
+  } catch(e) {
+    console.log('Could not fetch places.json, falling back to localStorage');
+  }
+
+  // Fallback: use localStorage (for local editing before GitHub is set up)
+  if (places.length > 0) {
+    renderPins();
+    return;
+  }
+
+  // Last resort: show empty map with a helpful message
+  updateStats();
+  showToast('Add your first place to get started!');
 }
 
 applyLockState();
 if (githubConfigured()) setSyncStatus('synced', 'Connected');
 initMap();
-renderPins();
+loadPlaces();
 </script>
 </body>
 </html>
