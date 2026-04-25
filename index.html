@@ -367,11 +367,62 @@ header {
 }
 .toast.show { transform: translateX(-50%) translateY(0); }
 
-@media (max-width: 600px) {
-  .panel { width: 100%; }
-  .stats { gap: 12px; }
+@media (max-width: 700px) {
+  /* Header: two rows on mobile */
+  header {
+    height: auto;
+    flex-wrap: wrap;
+    padding: 10px 16px;
+    gap: 8px;
+  }
+  .brand h1 { font-size: 1.2rem; }
   .brand .tagline { display: none; }
-  header { padding: 0 16px; }
+  .header-right {
+    width: 100%;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+  .mode-badge { display: none; }
+  .sync-indicator { display: none; }
+  .btn { padding: 6px 11px; font-size: 0.72rem; }
+  .stats { gap: 14px; }
+  .stat-num { font-size: 1rem; }
+  .stat-label { font-size: 0.58rem; }
+
+  /* Panel full screen */
+  .panel {
+    width: 100%;
+    top: 0;
+    height: 100vh;
+    z-index: 1200;
+  }
+  .panel-hero { height: 180px; }
+  .panel-city { font-size: 1.6rem; }
+
+  /* Map controls */
+  .map-controls { bottom: 70px; right: 14px; }
+  .ctrl { width: 40px; height: 40px; font-size: 1.1rem; }
+  .map-legend { bottom: 14px; left: 14px; font-size: 0.62rem; padding: 5px 10px; }
+
+  /* Modals slide up from bottom */
+  .overlay { align-items: flex-end; }
+  .modal {
+    width: 100% !important;
+    max-width: 100vw;
+    max-height: 92vh;
+    border-radius: 16px 16px 0 0;
+    padding: 24px 18px;
+  }
+
+  /* Single column forms */
+  .form-row { grid-template-columns: 1fr; gap: 0; }
+
+  /* 2-col photo grid */
+  .photos-grid { grid-template-columns: 1fr 1fr; }
+
+  /* Lightbox full width */
+  .lightbox img { max-width: 100vw; max-height: 80vh; border-radius: 0; }
 }
 </style>
 </head>
