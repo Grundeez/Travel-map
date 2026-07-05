@@ -640,8 +640,8 @@ function initMap() {
   }
 
   leafMap = L.map('map', {
-    center: [20, 10],
-    zoom: 2,
+    center: [47.97, -123.85],
+  zoom: 10,
     zoomControl: false,
     attributionControl: true
   });
@@ -654,7 +654,7 @@ function initMap() {
 }
 
 function resetView() {
-  if (leafMap) leafMap.setView([20, 10], 2);
+  if (leafMap) leafMap.setView([47.97, -123.85], 10);
 }
 
 function makePinIcon() {
